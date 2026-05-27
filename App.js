@@ -24,7 +24,6 @@ export default function App() {
 
   const getUnPokemon = async () => {
     try {
-      // Intentar hacer algo
       const response = await fetch(
         "https://pokeapi.co/api/v2/pokemon?limit=1000"
       );
@@ -32,7 +31,6 @@ export default function App() {
       console.log("Pokemon", data);
       setPokemon(data.results);
     } catch (error) {
-      // Si hay error
       console.log("ERROR. No fue posible acceder a la API");
     }
   };
@@ -42,7 +40,6 @@ export default function App() {
 
   const getPokemon = async (item) => {
     try {
-      // Intentar hacer algo
       const response = await fetch(
         `https://pokeapi.co/api/v2/pokemon/${item.name}`
       );
@@ -51,12 +48,10 @@ export default function App() {
       setDetallesPokemon(data);
       console.log("Pokeon elegido", detallesPokemon);
     } catch (error) {
-      // Si hay error
       console.log("ERROR. No fue posible acceder a la API");
     }
   };
 
-  // useEffect obligatorio para cargar la lista inicial de pokémones
   useEffect(() => {
     getUnPokemon();
   }, []);
@@ -67,7 +62,6 @@ export default function App() {
     }
   }, [pokemonSeleccionado]);
 
-  // Componente con Mayúscula para evitar el warning
   const Home = () => {
     const navigation = useNavigation();
     return (
@@ -124,37 +118,36 @@ export default function App() {
     );
   };
 
-  // Componente con Mayúscula para evitar el warning
 const Detalles = ({ route, navigation }) => {
     const { pokemon } = route.params;
     const [activeTab, setActiveTab] = useState('Base Stats');
-    const [evolutions, setEvolutions] = useState([]); // Estado para guardar las evoluciones
+    const [evolutions, setEvolutions] = useState([]);
   
     // Buscar la cadena de evolución
     useEffect(() => {
       const fetchEvolutions = async () => {
         try {
-          // 1. Buscamos la especie
+          // 1. Busca la especie
           const speciesRes = await fetch(pokemon.species.url);
           const speciesData = await speciesRes.json();
           
-          // 2. Buscamos la cadena de evolución
+          // 2. Busca la cadena de evolución
           const evoRes = await fetch(speciesData.evolution_chain.url);
           const evoData = await evoRes.json();
   
-          // 3. Extraemos los nombres y las IDs para las imágenes
+          // 3. Extrae los nombres y las IDs para las imágenes
           let chain = [];
           let current = evoData.chain;
           while (current) {
             const urlParts = current.species.url.split('/').filter(Boolean);
-            const id = urlParts[urlParts.length - 1]; // Sacamos el ID de la URL
+            const id = urlParts[urlParts.length - 1]; 
             
             chain.push({
               name: current.species.name,
               id: id,
               imageUrl: `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${id}.png`
             });
-            current = current.evolves_to[0]; // Avanzamos a la siguiente evolución
+            current = current.evolves_to[0]; 
           }
           setEvolutions(chain);
         } catch (error) {
@@ -365,12 +358,12 @@ const styles = StyleSheet.create({
   // --- ESTILOS MODO OSCURO PARA DETALLES ---
   detalles: {
     flex: 0.5,
-    backgroundColor: "#121212", // Fondo principal bien oscuro
+    backgroundColor: "#121212", 
     justifyContent: "center",
     alignItems: "center",
   },
   pokemonCard: {
-    backgroundColor: "#1E1E1E", // Tarjeta un gris un poco más claro para que resalte del fondo
+    backgroundColor: "#1E1E1E", 
     padding: 20,
     borderRadius: 20,
     alignItems: "center",
@@ -378,7 +371,7 @@ const styles = StyleSheet.create({
     elevation: 6,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4, // Sombra un poco más marcada en modo oscuro
+    shadowOpacity: 0.4, 
     shadowRadius: 6,
   },
   pokemonImage: {
@@ -388,7 +381,7 @@ const styles = StyleSheet.create({
   pokemonName: {
     fontSize: 32,
     fontWeight: "bold",
-    color: "#E0E0E0", // Letras claras
+    color: "#E0E0E0", 
     textTransform: "capitalize",
     marginBottom: 20,
   },
@@ -407,7 +400,7 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
   },
   placeholder: {
-    color: "#9E9E9E", // Gris medio para el texto de "no seleccionado"
+    color: "#9E9E9E",
     fontSize: 16,
     fontStyle: "italic",
     textAlign: "center",
@@ -422,7 +415,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     paddingHorizontal: 20,
-    paddingTop: 50, // Ajuste para notch/status bar
+    paddingTop: 50, 
   },
   headerIcon: {
     color: "white",
@@ -469,7 +462,7 @@ const styles = StyleSheet.create({
   whiteSheet: {
     backgroundColor: "white",
     flex: 1,
-    marginTop: 220, // Espacio para que el Pokemon quede arriba
+    marginTop: 220, 
     borderTopLeftRadius: 40,
     borderTopRightRadius: 40,
     paddingHorizontal: 30,
@@ -478,14 +471,14 @@ const styles = StyleSheet.create({
     width: 260,
     height: 260,
     position: "absolute",
-    top: -210, // Sube la imagen fuera de la tarjeta blanca
+    top: -210, 
     alignSelf: "center",
     zIndex: 10,
   },
   tabRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginTop: 60, // Deja espacio porque la imagen está arriba
+    marginTop: 60, 
     marginBottom: 20,
   },
   tabText: {
