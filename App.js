@@ -1,5 +1,5 @@
 import { StatusBar } from "expo-status-bar";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   StyleSheet,
   Text,
@@ -8,297 +8,334 @@ import {
   Pressable,
   Image,
   ScrollView,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
-import { NavigationContainer, useNavigation } from "@react-navigation/native";
+import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 
-
 const Stack = createNativeStackNavigator();
+const API_BASE = "https://pokeapi.co/api/v2/pokemon";
 
-export default function App() {
-  // HOOK DE REACT USESTATE (ESTADO)
-  const [pokemon, setPokemon] = useState([]);
-  const [pokemonSeleccionado, setPokemonSeleccionado] = useState(null);
-  const [detallesPokemon, setDetallesPokemon] = useState(null);
+const typeColors = {
+  grass: "#48D0B0",
+  fire: "#FB6C6C",
+  water: "#609FB5",
+  bug: "#C6D16E",
+  normal: "#D2D2C6",
+  poison: "#C68CC6",
+  electric: "#FAD536",
+  ground: "#EBD69D",
+  fairy: "#EE99AC",
+  fighting: "#C03028",
+  psychic: "#F366B9",
+  rock: "#C6B675",
+  ghost: "#705898",
+  ice: "#98D8D8",
+  dragon: "#6F35FC",
+  dark: "#705848",
+  steel: "#B8B8D0",
+  flying: "#A890F0",
+};
 
-  const getUnPokemon = async () => {
-    try {
-      const response = await fetch(
-        "https://pokeapi.co/api/v2/pokemon?limit=1000"
-      );
-      const data = await response.json();
-      console.log("Pokemon", data);
-      setPokemon(data.results);
-    } catch (error) {
-      console.log("ERROR. No fue posible acceder a la API");
-    }
-  };
+async function fetchPokemonList() {
+  const response = await fetch(`${API_BASE}?limit=1000`);
+  return response.json();
+}
 
-  //FUNCION PARA LLAMAR A UNA API
-  //fetch y async await
+async function fetchPokemonDetails(name) {
+  const response = await fetch(`${API_BASE}/${name}`);
+  return response.json();
+}
 
-  const getPokemon = async (item) => {
-    try {
-      const response = await fetch(
-        `https://pokeapi.co/api/v2/pokemon/${item.name}`
-      );
-      const data = await response.json();
-      console.log("Pokemon", data);
-      setDetallesPokemon(data);
-      console.log("Pokeon elegido", detallesPokemon);
-    } catch (error) {
-      console.log("ERROR. No fue posible acceder a la API");
-    }
-  };
+async function fetchPokemonEvolutions(speciesUrl) {
+  const speciesRes = await fetch(speciesUrl);
+  const speciesData = await speciesRes.json();
+  const evoRes = await fetch(speciesData.evolution_chain.url);
+  const evoData = await evoRes.json();
 
-  useEffect(() => {
-    getUnPokemon();
-  }, []);
+  const chain = [];
+  let current = evoData.chain;
 
-  useEffect(() => {
-    if (pokemonSeleccionado) {
-      getPokemon(pokemonSeleccionado);
-    }
-  }, [pokemonSeleccionado]);
+  while (current) {
+    const parts = current.species.url.split("/").filter(Boolean);
+    const id = parts[parts.length - 1];
 
-  const Home = () => {
-    const navigation = useNavigation();
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.lista}>
-          <Text style={styles.titulo}>POKEAPP</Text>
-          <Text style={styles.subtitulo}>Elige tu Pokémon:</Text>
+    chain.push({
+      name: current.species.name,
+      id,
+      imageUrl: `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${id}.png`,
+    });
+
+    current = current.evolves_to[0];
+  }
+
+  return chain;
+}
+
+function HomeScreen({ navigation, pokemon, detallesPokemon, onSelectPokemon, isLoadingList, isLoadingDetails }) {
+  return (
+    <SafeAreaView style={styles.container}>
+      <View style={styles.lista}>
+        <Text style={styles.titulo}>POKEAPP</Text>
+        <Text style={styles.subtitulo}>Elige tu Pokémon:</Text>
+
+        {isLoadingList ? (
+          <View style={styles.loaderContainer}>
+            <ActivityIndicator size="large" color="white" />
+          </View>
+        ) : (
           <FlatList
             data={pokemon}
             renderItem={({ item }) => (
               <Pressable
-                style={({ pressed }) => [
-                  styles.item,
-                  pressed && styles.itemPressed,
-                ]}
-                // Ahora actualiza el estado al hacer click
-                onPress={() => setPokemonSeleccionado(item)}
+                style={({ pressed }) => [styles.item, pressed && styles.itemPressed]}
+                onPress={() => onSelectPokemon(item)}
               >
                 <Text style={styles.itemText}>{item.name}</Text>
               </Pressable>
             )}
-            keyExtractor={(item) => item.url.split("/").filter(Boolean).pop()}
+            keyExtractor={(item) => item.name}
             contentContainerStyle={styles.listaContent}
             showsVerticalScrollIndicator={false}
+            initialNumToRender={20}
           />
-        </View>
+        )}
+      </View>
 
-        <View style={styles.detalles}>
-          {detallesPokemon ? (
-            <View style={styles.pokemonCard}>
-              <Image 
-                style={styles.pokemonImage} 
-                source={{ uri: detallesPokemon?.sprites?.front_default }} 
-              />
-              <Text style={styles.pokemonName}>{detallesPokemon.name}</Text>
-              <Pressable 
-                style={({ pressed }) => [
-                  styles.btnDetalles,
-                  pressed && { opacity: 0.8 } 
-                ]} 
-                onPress={() => navigation.navigate("detalles", { pokemon: detallesPokemon })}>
-                <Text style={styles.btnText}>Ver Detalles</Text>
-              </Pressable>
-            </View>
-          ) : (
-            <Text style={styles.placeholder}>
-              No se seleccionó ningún pokémon
-            </Text>
-          )}
-        </View>
+      <View style={styles.detalles}>
+        {detallesPokemon ? (
+          <View style={styles.pokemonCard}>
+            <Image
+              style={styles.pokemonImage}
+              source={{ uri: detallesPokemon.sprites?.front_default }}
+            />
+            <Text style={styles.pokemonName}>{detallesPokemon.name}</Text>
 
-        <StatusBar style="auto" />
-      </SafeAreaView>
-    );
-  };
+            <Pressable
+              style={({ pressed }) => [styles.btnDetalles, pressed && { opacity: 0.8 }]}
+              onPress={() => navigation.navigate("detalles", { pokemon: detallesPokemon })}
+            >
+              <Text style={styles.btnText}>Ver Detalles</Text>
+            </Pressable>
 
-const Detalles = ({ route, navigation }) => {
-    const { pokemon } = route.params;
-    const [activeTab, setActiveTab] = useState('Base Stats');
-    const [evolutions, setEvolutions] = useState([]);
-  
-    // Buscar la cadena de evolución
-    useEffect(() => {
-      const fetchEvolutions = async () => {
-        try {
-          // 1. Busca la especie
-          const speciesRes = await fetch(pokemon.species.url);
-          const speciesData = await speciesRes.json();
-          
-          // 2. Busca la cadena de evolución
-          const evoRes = await fetch(speciesData.evolution_chain.url);
-          const evoData = await evoRes.json();
-  
-          // 3. Extrae los nombres y las IDs para las imágenes
-          let chain = [];
-          let current = evoData.chain;
-          while (current) {
-            const urlParts = current.species.url.split('/').filter(Boolean);
-            const id = urlParts[urlParts.length - 1]; 
-            
-            chain.push({
-              name: current.species.name,
-              id: id,
-              imageUrl: `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${id}.png`
-            });
-            current = current.evolves_to[0]; 
-          }
+            {isLoadingDetails && <Text style={styles.loadingText}>Cargando detalles...</Text>}
+          </View>
+        ) : (
+          <Text style={styles.placeholder}>No se seleccionó ningún pokémon</Text>
+        )}
+      </View>
+
+      <StatusBar style="auto" />
+    </SafeAreaView>
+  );
+}
+
+function DetailsScreen({ route, navigation }) {
+  const { pokemon } = route.params;
+  const [activeTab, setActiveTab] = useState("Base Stats");
+  const [evolutions, setEvolutions] = useState([]);
+  const [isLoadingEvolutions, setIsLoadingEvolutions] = useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadEvolutions() {
+      try {
+        const chain = await fetchPokemonEvolutions(pokemon.species.url);
+        if (mounted) {
           setEvolutions(chain);
-        } catch (error) {
-          console.log("Error al buscar evoluciones", error);
         }
-      };
-  
-      fetchEvolutions();
-    }, [pokemon]);
-  
-    // Colores según el tipo principal
-    const typeColors = {
-      grass: '#48D0B0', fire: '#FB6C6C', water: '#609FB5', bug: '#C6D16E',
-      normal: '#D2D2C6', poison: '#C68CC6', electric: '#FAD536', ground: '#EBD69D',
-      fairy: '#EE99AC', fighting: '#C03028', psychic: '#F366B9', rock: '#C6B675',
-      ghost: '#705898', ice: '#98D8D8', dragon: '#6F35FC', dark: '#705848',
-      steel: '#B8B8D0', flying: '#A890F0',
+      } catch (error) {
+        console.log("Error al buscar evoluciones", error);
+      } finally {
+        if (mounted) {
+          setIsLoadingEvolutions(false);
+        }
+      }
+    }
+
+    loadEvolutions();
+    return () => {
+      mounted = false;
     };
-  
-    const mainType = pokemon.types[0].type.name;
-    const bgColor = typeColors[mainType] || '#48D0B0';
-    const formattedId = `#${pokemon.id.toString().padStart(3, '0')}`;
-    const imageUrl = pokemon.sprites.other['official-artwork'].front_default;
-  
-    return (
-      <View style={[styles.detailContainer, { backgroundColor: bgColor }]}>
-        <View style={styles.detailHeader}>
-          <Pressable onPress={() => navigation.goBack()} style={{ padding: 10 }}>
-            <Text style={styles.headerIcon}>←</Text>
-          </Pressable>
+  }, [pokemon.species.url]);
+
+  const mainType = pokemon.types?.[0]?.type?.name;
+  const bgColor = typeColors[mainType] || "#48D0B0";
+  const formattedId = `#${pokemon.id.toString().padStart(3, "0")}`;
+  const imageUrl = pokemon.sprites?.other?.["official-artwork"]?.front_default ?? pokemon.sprites?.front_default;
+
+  return (
+    <View style={[styles.detailContainer, { backgroundColor: bgColor }]}> 
+      <View style={styles.detailHeader}>
+        <Pressable onPress={() => navigation.goBack()} style={styles.backButton}>
+          <Text style={styles.headerIcon}>←</Text>
+        </Pressable>
+      </View>
+
+      <View style={styles.titleContainer}>
+        <View style={styles.nameRow}>
+          <Text style={styles.detailName}>{pokemon.name}</Text>
+          <Text style={styles.detailId}>{formattedId}</Text>
         </View>
-  
-        <View style={styles.titleContainer}>
-          <View style={styles.nameRow}>
-            <Text style={styles.detailName}>{pokemon.name}</Text>
-            <Text style={styles.detailId}>{formattedId}</Text>
-          </View>
-          <View style={styles.typesRow}>
-            {pokemon.types.map((t) => (
-              <View key={t.type.name} style={styles.typePill}>
-                <Text style={styles.typeText}>{t.type.name}</Text>
+
+        <View style={styles.typesRow}>
+          {pokemon.types.map((typeItem) => (
+            <View key={typeItem.type.name} style={styles.typePill}>
+              <Text style={styles.typeText}>{typeItem.type.name}</Text>
+            </View>
+          ))}
+        </View>
+      </View>
+
+      <View style={styles.whiteSheet}>
+        <Image source={{ uri: imageUrl }} style={styles.overlapImage} />
+
+        <View style={styles.tabRow}>
+          {["About", "Base Stats", "Evolution", "Moves"].map((tab) => (
+            <Pressable key={tab} onPress={() => setActiveTab(tab)} style={styles.tabButton}>
+              <Text style={[styles.tabText, activeTab === tab && styles.tabActive]}>{tab}</Text>
+              {activeTab === tab && <View style={styles.activeIndicator} />}
+            </Pressable>
+          ))}
+        </View>
+
+        <View style={styles.tabContent}>
+          {activeTab === "About" && (
+            <View>
+              <View style={styles.statRow}>
+                <Text style={styles.statLabel}>Height</Text>
+                <Text style={styles.statValue}>{pokemon.height / 10} m</Text>
               </View>
-            ))}
-          </View>
-        </View>
-  
-        <View style={styles.whiteSheet}>
-          <Image source={{ uri: imageUrl }} style={styles.overlapImage} />
-  
-          <View style={styles.tabRow}>
-            {['About', 'Base Stats', 'Evolution', 'Moves'].map((tab) => (
-              <Pressable key={tab} onPress={() => setActiveTab(tab)}>
-                <Text style={[styles.tabText, activeTab === tab && styles.tabActive]}>
-                  {tab}
+              <View style={styles.statRow}>
+                <Text style={styles.statLabel}>Weight</Text>
+                <Text style={styles.statValue}>{pokemon.weight / 10} kg</Text>
+              </View>
+              <View style={styles.statRow}>
+                <Text style={styles.statLabel}>Abilities</Text>
+                <Text style={[styles.statValue, styles.capitalizeText]}>
+                  {pokemon.abilities.map((item) => item.ability.name).join(", ")}
                 </Text>
-                {activeTab === tab && <View style={styles.activeIndicator} />}
-              </Pressable>
-            ))}
-          </View>
-  
-          <View style={styles.tabContent}>
-            
-            {/* PESTAÑA: ABOUT */}
-            {activeTab === 'About' && (
-              <View>
-                <View style={styles.statRow}>
-                  <Text style={styles.statLabel}>Height</Text>
-                  <Text style={styles.statValue}>{pokemon.height / 10} m</Text>
-                </View>
-                <View style={styles.statRow}>
-                  <Text style={styles.statLabel}>Weight</Text>
-                  <Text style={styles.statValue}>{pokemon.weight / 10} kg</Text>
-                </View>
-                <View style={styles.statRow}>
-                  <Text style={styles.statLabel}>Abilities</Text>
-                  <Text style={[styles.statValue, { textTransform: 'capitalize' }]}>
-                    {pokemon.abilities.map((a) => a.ability.name).join(', ')}
-                  </Text>
-                </View>
               </View>
-            )}
-  
-            {/* PESTAÑA: BASE STATS */}
-            {activeTab === 'Base Stats' && (
-              <ScrollView showsVerticalScrollIndicator={false}>
-                {pokemon.stats.map((s) => {
-                  const statVal = s.base_stat;
-                  const barColor = statVal >= 50 ? '#48D0B0' : '#FB6C6C';
-                  const statNames = { hp: 'HP', attack: 'Attack', defense: 'Defense', 'special-attack': 'Sp. Atk', 'special-defense': 'Sp. Def', speed: 'Speed' };
-                  
-                  return (
-                    <View key={s.stat.name} style={styles.statRow}>
-                      <Text style={styles.statLabel}>{statNames[s.stat.name] || s.stat.name}</Text>
-                      <Text style={styles.statNumber}>{statVal}</Text>
-                      <View style={styles.barContainer}>
-                        <View style={[styles.barFill, { width: `${(statVal / 255) * 100}%`, backgroundColor: barColor, maxWidth: '100%' }]} />
-                      </View>
+            </View>
+          )}
+
+          {activeTab === "Base Stats" && (
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {pokemon.stats.map((s) => {
+                const statVal = s.base_stat;
+                const barColor = statVal >= 50 ? "#48D0B0" : "#FB6C6C";
+                const statNames = {
+                  hp: "HP",
+                  attack: "Attack",
+                  defense: "Defense",
+                  "special-attack": "Sp. Atk",
+                  "special-defense": "Sp. Def",
+                  speed: "Speed",
+                };
+
+                return (
+                  <View key={s.stat.name} style={styles.statRow}>
+                    <Text style={styles.statLabel}>{statNames[s.stat.name] || s.stat.name}</Text>
+                    <Text style={styles.statNumber}>{statVal}</Text>
+                    <View style={styles.barContainer}>
+                      <View style={[styles.barFill, { width: `${(statVal / 255) * 100}%`, backgroundColor: barColor }]} />
                     </View>
-                  );
-                })}
-              </ScrollView>
-            )}
-  
-            {/* PESTAÑA: EVOLUTION */}
-            {activeTab === 'Evolution' && (
-              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.evoContainer}>
-                {evolutions.length > 0 ? evolutions.map((evo, index) => (
+                  </View>
+                );
+              })}
+            </ScrollView>
+          )}
+
+          {activeTab === "Evolution" && (
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.evoContainer}>
+              {isLoadingEvolutions ? (
+                <Text style={styles.loadingEvolutionsText}>Cargando evoluciones...</Text>
+              ) : evolutions.length > 0 ? (
+                evolutions.map((evo, index) => (
                   <View key={evo.name} style={styles.evoWrapper}>
                     <View style={styles.evoItem}>
                       <Image source={{ uri: evo.imageUrl }} style={styles.evoImage} />
                       <Text style={styles.evoName}>{evo.name}</Text>
                     </View>
-                    {/* Flecha para apuntar a la siguiente evolución */}
-                    {index < evolutions.length - 1 && (
-                      <Text style={styles.evoArrow}>↓</Text>
-                    )}
+                    {index < evolutions.length - 1 && <Text style={styles.evoArrow}>↓</Text>}
                   </View>
-                )) : (
-                  <Text style={{textAlign: 'center', color: 'gray'}}>Cargando evoluciones...</Text>
-                )}
-              </ScrollView>
-            )}
-  
-            {/* PESTAÑA: MOVES */}
-            {activeTab === 'Moves' && (
-              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.movesContainer}>
-                {pokemon.moves.map((m) => (
-                  <View key={m.move.name} style={styles.movePill}>
-                    <Text style={styles.moveText}>{m.move.name}</Text>
-                  </View>
-                ))}
-              </ScrollView>
-            )}
-  
-          </View>
+                ))
+              ) : (
+                <Text style={styles.loadingEvolutionsText}>No hay evoluciones disponibles.</Text>
+              )}
+            </ScrollView>
+          )}
+
+          {activeTab === "Moves" && (
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.movesContainer}>
+              {pokemon.moves.map((moveItem) => (
+                <View key={moveItem.move.name} style={styles.movePill}>
+                  <Text style={styles.moveText}>{moveItem.move.name}</Text>
+                </View>
+              ))}
+            </ScrollView>
+          )}
         </View>
       </View>
-    );
-  };
+    </View>
+  );
+}
+
+export default function App() {
+  const [pokemon, setPokemon] = useState([]);
+  const [detallesPokemon, setDetallesPokemon] = useState(null);
+  const [isLoadingList, setIsLoadingList] = useState(true);
+  const [isLoadingDetails, setIsLoadingDetails] = useState(false);
+
+  const loadPokemonList = useCallback(async () => {
+    setIsLoadingList(true);
+    try {
+      const data = await fetchPokemonList();
+      setPokemon(data.results ?? []);
+    } catch (error) {
+      console.log("ERROR. No fue posible acceder a la API", error);
+    } finally {
+      setIsLoadingList(false);
+    }
+  }, []);
+
+  const loadPokemonDetails = useCallback(async (item) => {
+    setIsLoadingDetails(true);
+    try {
+      const data = await fetchPokemonDetails(item.name);
+      setDetallesPokemon(data);
+    } catch (error) {
+      console.log("ERROR. No fue posible acceder a la API", error);
+    } finally {
+      setIsLoadingDetails(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadPokemonList();
+  }, [loadPokemonList]);
 
   return (
     <SafeAreaProvider>
       <NavigationContainer>
-        <Stack.Navigator>
-          <Stack.Screen name="home" component={Home} options={{ headerShown: false }} />
-            <Stack.Screen 
-            name="detalles" 
-            component={Detalles} 
-            options={{ headerShown: false }} 
-            />
-          </Stack.Navigator>
+        <Stack.Navigator screenOptions={{ headerShown: false }}>
+          <Stack.Screen
+            name="home"
+            children={(props) => (
+              <HomeScreen
+                {...props}
+                pokemon={pokemon}
+                detallesPokemon={detallesPokemon}
+                onSelectPokemon={loadPokemonDetails}
+                isLoadingList={isLoadingList}
+                isLoadingDetails={isLoadingDetails}
+              />
+            )}
+          />
+          <Stack.Screen name="detalles" component={DetailsScreen} />
+        </Stack.Navigator>
       </NavigationContainer>
     </SafeAreaProvider>
   );
@@ -354,16 +391,20 @@ const styles = StyleSheet.create({
     textTransform: "capitalize",
     textAlign: "center",
   },
-  
-  // --- ESTILOS MODO OSCURO PARA DETALLES ---
+  loaderContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 40,
+  },
   detalles: {
     flex: 0.5,
-    backgroundColor: "#121212", 
+    backgroundColor: "#121212",
     justifyContent: "center",
     alignItems: "center",
   },
   pokemonCard: {
-    backgroundColor: "#1E1E1E", 
+    backgroundColor: "#1E1E1E",
     padding: 20,
     borderRadius: 20,
     alignItems: "center",
@@ -371,17 +412,17 @@ const styles = StyleSheet.create({
     elevation: 6,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4, 
+    shadowOpacity: 0.4,
     shadowRadius: 6,
   },
   pokemonImage: {
-    width: 180, 
+    width: 180,
     height: 180,
   },
   pokemonName: {
     fontSize: 32,
     fontWeight: "bold",
-    color: "#E0E0E0", 
+    color: "#E0E0E0",
     textTransform: "capitalize",
     marginBottom: 20,
   },
@@ -405,17 +446,21 @@ const styles = StyleSheet.create({
     fontStyle: "italic",
     textAlign: "center",
   },
-
-  // --- ESTILOS PANTALLA DETALLES (Diseño Pokedex) ---
-
+  loadingText: {
+    color: "#B0BEC5",
+    marginTop: 10,
+  },
   detailContainer: {
     flex: 1,
   },
   detailHeader: {
     flexDirection: "row",
-    justifyContent: "space-between",
+    justifyContent: "flex-start",
     paddingHorizontal: 20,
-    paddingTop: 50, 
+    paddingTop: 50,
+  },
+  backButton: {
+    padding: 10,
   },
   headerIcon: {
     color: "white",
@@ -462,7 +507,7 @@ const styles = StyleSheet.create({
   whiteSheet: {
     backgroundColor: "white",
     flex: 1,
-    marginTop: 220, 
+    marginTop: 220,
     borderTopLeftRadius: 40,
     borderTopRightRadius: 40,
     paddingHorizontal: 30,
@@ -471,15 +516,18 @@ const styles = StyleSheet.create({
     width: 260,
     height: 260,
     position: "absolute",
-    top: -210, 
+    top: -210,
     alignSelf: "center",
     zIndex: 10,
   },
   tabRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginTop: 60, 
+    marginTop: 60,
     marginBottom: 20,
+  },
+  tabButton: {
+    alignItems: "center",
   },
   tabText: {
     fontSize: 14,
@@ -495,6 +543,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#6C79DB",
     marginTop: 5,
     borderRadius: 2,
+    width: "100%",
   },
   tabContent: {
     flex: 1,
@@ -532,7 +581,9 @@ const styles = StyleSheet.create({
     height: "100%",
     borderRadius: 2,
   },
-  // --- ESTILOS EVOLUCIONES ---
+  capitalizeText: {
+    textTransform: "capitalize",
+  },
   evoContainer: {
     alignItems: "center",
     paddingBottom: 40,
@@ -561,8 +612,11 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     fontWeight: "bold",
   },
-
-  // --- ESTILOS MOVIMIENTOS ---
+  loadingEvolutionsText: {
+    textAlign: "center",
+    color: "gray",
+    marginTop: 20,
+  },
   movesContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
