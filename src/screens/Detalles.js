@@ -1,14 +1,36 @@
 import { useState, useEffect } from "react";
-import { StyleSheet, Text, View, Pressable, Image, ScrollView } from "react-native";
+import { StyleSheet, Text, View, Pressable, Image, ScrollView, ActivityIndicator } from "react-native";
+
+// 1. Sacamos los objetos pesados AFUERA del componente para evitar recrearlos en cada render.
+const TYPE_COLORS = {
+  grass: '#48D0B0', fire: '#FB6C6C', water: '#609FB5', bug: '#C6D16E',
+  normal: '#D2D2C6', poison: '#C68CC6', electric: '#FAD536', ground: '#EBD69D',
+  fairy: '#EE99AC', fighting: '#C03028', psychic: '#F366B9', rock: '#C6B675',
+  ghost: '#705898', ice: '#98D8D8', dragon: '#6F35FC', dark: '#705848',
+  steel: '#B8B8D0', flying: '#A890F0',
+};
+
+const STAT_NAMES = { 
+  hp: 'HP', 
+  attack: 'Attack', 
+  defense: 'Defense', 
+  'special-attack': 'Sp. Atk', 
+  'special-defense': 'Sp. Def', 
+  speed: 'Speed' 
+};
 
 export default function Detalles({ route, navigation }) {
   const { pokemon } = route.params;
   const [activeTab, setActiveTab] = useState('Base Stats');
   const [evolutions, setEvolutions] = useState([]);
+  const [isLoadingEvo, setIsLoadingEvo] = useState(true);
 
   useEffect(() => {
+    let isMounted = true; // 2. Bandera para evitar Memory Leaks
+
     const fetchEvolutions = async () => {
       try {
+        setIsLoadingEvo(true);
         const speciesRes = await fetch(pokemon.species.url);
         const speciesData = await speciesRes.json();
         
@@ -28,25 +50,28 @@ export default function Detalles({ route, navigation }) {
           });
           current = current.evolves_to[0]; 
         }
-        setEvolutions(chain);
+        
+        // Solo actualiza el estado si el usuario sigue en esta pantalla
+        if (isMounted) {
+          setEvolutions(chain);
+        }
       } catch (error) {
-        console.log("Error al buscar evoluciones", error);
+        if (isMounted) console.log("Error al buscar evoluciones", error);
+      } finally {
+        if (isMounted) setIsLoadingEvo(false);
       }
     };
 
     fetchEvolutions();
+
+    // Función de limpieza cuando el componente se desmonta
+    return () => {
+      isMounted = false;
+    };
   }, [pokemon]);
 
-  const typeColors = {
-    grass: '#48D0B0', fire: '#FB6C6C', water: '#609FB5', bug: '#C6D16E',
-    normal: '#D2D2C6', poison: '#C68CC6', electric: '#FAD536', ground: '#EBD69D',
-    fairy: '#EE99AC', fighting: '#C03028', psychic: '#F366B9', rock: '#C6B675',
-    ghost: '#705898', ice: '#98D8D8', dragon: '#6F35FC', dark: '#705848',
-    steel: '#B8B8D0', flying: '#A890F0',
-  };
-
   const mainType = pokemon.types[0].type.name;
-  const bgColor = typeColors[mainType] || '#48D0B0';
+  const bgColor = TYPE_COLORS[mainType] || '#48D0B0';
   const formattedId = `#${pokemon.id.toString().padStart(3, '0')}`;
   const imageUrl = pokemon.sprites.other['official-artwork'].front_default;
 
@@ -112,11 +137,11 @@ export default function Detalles({ route, navigation }) {
               {pokemon.stats.map((s) => {
                 const statVal = s.base_stat;
                 const barColor = statVal >= 50 ? '#48D0B0' : '#FB6C6C';
-                const statNames = { hp: 'HP', attack: 'Attack', defense: 'Defense', 'special-attack': 'Sp. Atk', 'special-defense': 'Sp. Def', speed: 'Speed' };
+                const statLabel = STAT_NAMES[s.stat.name] || s.stat.name;
                 
                 return (
                   <View key={s.stat.name} style={styles.statRow}>
-                    <Text style={styles.statLabel}>{statNames[s.stat.name] || s.stat.name}</Text>
+                    <Text style={styles.statLabel}>{statLabel}</Text>
                     <Text style={styles.statNumber}>{statVal}</Text>
                     <View style={styles.barContainer}>
                       <View style={[styles.barFill, { width: `${(statVal / 255) * 100}%`, backgroundColor: barColor, maxWidth: '100%' }]} />
@@ -129,18 +154,20 @@ export default function Detalles({ route, navigation }) {
 
           {activeTab === 'Evolution' && (
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.evoContainer}>
-              {evolutions.length > 0 ? evolutions.map((evo, index) => (
-                <View key={evo.name} style={styles.evoWrapper}>
-                  <View style={styles.evoItem}>
-                    <Image source={{ uri: evo.imageUrl }} style={styles.evoImage} />
-                    <Text style={styles.evoName}>{evo.name}</Text>
+              {isLoadingEvo ? (
+                <ActivityIndicator size="large" color={bgColor} style={{ marginTop: 20 }} />
+              ) : (
+                evolutions.map((evo, index) => (
+                  <View key={evo.name} style={styles.evoWrapper}>
+                    <View style={styles.evoItem}>
+                      <Image source={{ uri: evo.imageUrl }} style={styles.evoImage} />
+                      <Text style={styles.evoName}>{evo.name}</Text>
+                    </View>
+                    {index < evolutions.length - 1 && (
+                      <Text style={styles.evoArrow}>↓</Text>
+                    )}
                   </View>
-                  {index < evolutions.length - 1 && (
-                    <Text style={styles.evoArrow}>↓</Text>
-                  )}
-                </View>
-              )) : (
-                <Text style={{textAlign: 'center', color: 'gray'}}>Cargando evoluciones...</Text>
+                ))
               )}
             </ScrollView>
           )}
